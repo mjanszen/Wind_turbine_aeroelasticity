@@ -4,7 +4,10 @@ Homework assignments for TU Delft's Wind turbine aeroelasticity class in Q4 2023
 
 ## To-do's:
 
-- Get the blade data 
-- write read in functions 
-- figure our if our BEM is better than theirs 
-- build the change of the blade state into an input for the BEM
+- Implement the steady case (considering the blade pitch as a function of the wind speed
+- Check the blade pitch in the unsteady conditions 
+- Remove initial transient from the structure response signal
+- compute time lag response and loads
+- Reporting: describe the structural model
+- Reporting: write section about the interpolation of the loads 
+- Reporting: write section on the transient, frequency components and the lag

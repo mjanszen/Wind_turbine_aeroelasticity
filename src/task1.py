@@ -90,7 +90,7 @@ if __name__ == "__main__":
                      'dt': 0.01,
                      'pitch': np.deg2rad(10.45),
                      'omega': 12.1 * (2*np.pi /60),     # rpm
-                     'steady': True,                    # Toggle the quasi steady computation
+                     'steady': False,                    # Toggle the quasi steady computation
                      'debug': True
                      }
     # --------------------------------------------------------------------------#
@@ -225,4 +225,3 @@ if __name__ == "__main__":
     axs[1].grid()
     axs[2].grid()
     plt.show()
-
