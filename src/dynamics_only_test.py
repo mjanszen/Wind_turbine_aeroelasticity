@@ -1,13 +1,13 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
+
 
 def system_of_odes(t, y):
     # Define the system of second-order ODEs
     # y is an array of shape (2n,), where n is the number of equations
     
     # Compute coefficients
-
-
 
     n = int(len(y) / 2)
     y1 = y[:n]  # x,y
@@ -16,6 +16,7 @@ def system_of_odes(t, y):
 
     dy2_dt = -0.001*y2 - 3*y1
     return np.concatenate([dy1_dt, dy2_dt])
+
 
 # Define the initial conditions
 initial_conditions = [1, 0]  # Initial values for y1 and y2
@@ -35,8 +36,6 @@ n=2
 y1_values = solution.y[:n]  # Array of y1 values
 y2_values = solution.y[n:]  # Array of y2 values
 
-
-import matplotlib.pyplot as plt
 
 # Plot the solution
 plt.plot(solution.t, y1_values[0], label='y1')

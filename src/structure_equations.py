@@ -1,12 +1,12 @@
-# 
 #
-# Functions for the eigenforms of the blade
+#
+# Functions for the Eigenforms of the blade
 #
 #
 
 
 import numpy as np
-from numpy.polynomial.polynomial import Polynomial
+# from numpy.polynomial.polynomial import Polynomial
 
 
 def phi_edge(r: float, R: float):
@@ -19,7 +19,7 @@ def phi_edge(r: float, R: float):
     """
     # poly1D has different order than polynomial
     # poly1D needs highest polynomial first
-    #polynomial_coeffs = [-0.6952, 2.376, -3.5772, 2.5337, 0.3627, 0, 0]
+    # polynomial_coeffs = [-0.6952, 2.376, -3.5772, 2.5337, 0.3627, 0, 0]
     polynomial_coeffs = [-0.6952/(R**6), 2.376/(R**5), -3.5772/(R**4), 2.5337/(R**3), 0.3627/(R**2), 0, 0]
     # phi = np.poly1d(polynomial_coeffs)
     phi = np.polynomial.polynomial.Polynomial(polynomial_coeffs[::-1])
