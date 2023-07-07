@@ -216,6 +216,8 @@ class Struct():
         f_edge = np.trapz(np.multiply(self.f_edge, self.phi_edge_spanwise), self.discretization)
         f_flap = np.trapz(np.multiply(self.f_flap, self.phi_flap_spanwise), self.discretization)
         self.f = np.array([f_flap, f_edge])  # ---------> This needs to be changed every step
+        logging.debug(self.f)
+        #breakpoint()
 
     def _apply_unit_loads(self, f_bem_edge, f_bem_flap, bem_radii):
         """
@@ -254,11 +256,14 @@ class Struct():
         """
         Compute structural response from aero loads state of the blade
         """
+        # 1. Switch to blade coordinate system
         f_bem_edge, f_bem_flap = self._loads_to_blade_coords(f_bem_normal, f_bem_tangential, pitch_rad)
-        # 1. Forces interpolation
+        
+        # 2. Forces interpolation
         self._apply_unit_loads(f_bem_edge, f_bem_flap, bem_radii)  # --> self.f_edge, self.f_flap
-        # 2. equivalent force
-        self._compute_equivalent_forces()  # --> Force along the blade to equivalent force vector
+        
+        # 3. equivalent force
+        self._compute_equivalent_forces()  # --> Force along the blade to equivalent force vector in 2D
 
         # 3. Solve ode
         logging.debug(time_span)
@@ -268,6 +273,28 @@ class Struct():
             logging.warning("Structural solver did not converge!")
         self.state = solution.y[:, -1]
         logging.debug(self.state)
+
+    def solve_steady_structure(self, f_bem_normal, f_bem_tangential, bem_radii, pitch_rad):
+        """
+        Compute the steady response of the structure. Reduces the Equation of motion to kx = f
+        """
+        # 1. Switch to blade coordinate system
+        f_bem_edge, f_bem_flap = self._loads_to_blade_coords(f_bem_normal, f_bem_tangential, pitch_rad)
+        
+        # 2. Forces interpolation
+
+        self._apply_unit_loads(f_bem_edge, f_bem_flap, bem_radii)  # --> self.f_edge, self.f_flap
+        
+        # 3. equivalent force
+        self._compute_equivalent_forces()  # --> Force along the blade to equivalent force vector in 2D
+
+        # 3. Solve EOM : x = f/k
+        
+        x= self.f / self.k
+        self.state = np.concatenate((x.diagonal(), [0, 0]))
+        breakpoint()
+        logging.debug(self.state)
+        return self.state
 
     def blade_to_rotor_coords():
         """

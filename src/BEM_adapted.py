@@ -131,6 +131,8 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch):
     R = 63            # Rotor radius
     hub_rad = 1.5     # Hub radius
     rho = 1.225       # Density of air
+    #pitch = np.rad2deg(pitch)  # used in degrees here !
+    
     precision_tolerance = 0.00001     # Iterative precision tolerance
 
     # Import blade section file
@@ -179,7 +181,7 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch):
         a_prime = ax_prime - 10 * precision_tolerance  # Generate error, active iteration
 
         n_iter = 0  # Iteration counter
-        
+      
         #breakpoint()
         # Iteration, stop when error is smaller than precision_tolerance
         while abs(ax - a) >= precision_tolerance or abs(ax_prime - a_prime) >= precision_tolerance:
@@ -190,11 +192,11 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch):
             a_prime = ax_prime
 
             # Inflow angle
-            phi = np.arctan((1 - a) * v0 / ((1 + a_prime) * r * omega))
+            phi = np.arctan(((1 - a) * v0 - v_blade_oop[i])/(((1 + a_prime) * r * omega) - v_blade_ip[i]))
             phi = np.rad2deg(phi)
 
             # Angle of attack (AOA)
-            alpha = phi - theta - pitch
+            alpha = phi - theta - pitch  # in degrees
 
             # Find Cl and Cd
             cl_current = np.interp(alpha, alpha_table, cl_table)
@@ -206,9 +208,15 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch):
 
             # Prandtl Loss
             f_tiploss_pre = B / 2 * (R - r) / (r * np.sin(np.deg2rad(phi)))
+            
             f_tiploss = (2 / np.pi) * np.arccos(np.exp(-f_tiploss_pre))
             f_hubloss_pre = B / 2 * (r - hub_rad) / (r * np.sin(np.deg2rad(phi)))
             f_hubloss = (2 / np.pi) * np.arccos(np.exp(-f_hubloss_pre))
+            if False:
+                # if (f_tiploss_pre <0 or f_hubloss_pre <0) and r>10:
+                print(f"f is:{f_tiploss_pre}")
+                print(f"fhub is:{f_hubloss_pre}")
+                breakpoint()
             f = f_tiploss * f_hubloss
 
             # Glauert Correction
@@ -220,6 +228,11 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch):
                 ax = 1 / (4 * f * np.sin(np.deg2rad(phi)) ** 2 / (sigma * cn) + 1)
             ax_prime = 1 / (4 * f * np.sin(np.deg2rad(phi)) * np.cos(np.deg2rad(phi)) / (sigma * ct) - 1)
 
+            #if (ax<0 or ax_prime <0) and r>10:  # tangential induction will be negative at low radii
+            if False:
+                print(f"f is:{f_tiploss_pre}")
+                print(f"fhub is:{f_hubloss_pre}")
+                breakpoint()
             # In case of iterative convergence failure
             if n_iter >= 100:
                 ax = 0.3
@@ -231,7 +244,11 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch):
 
         # Forces in two directions -----> per unit length !
         f_normal[i] = 0.5 * rho * ((r * omega * (1 + a_prime)- v_blade_ip[i]) ** 2 + (v0 * (1 - a)- v_blade_oop[i]) ** 2) * chord * cn
-        f_tangential[i] = 0.5 * rho * ((r * omega * (1 + a_prime)- v_blade_ip[i]) ** 2 + (v0 * (1 - a))- v_blade_oop[i] ** 2) * chord * ct
+        f_tangential[i] = 0.5 * rho * ((r * omega * (1 + a_prime)- v_blade_ip[i]) ** 2 + (v0 * (1 - a)- v_blade_oop[i]) ** 2) * chord * ct
+       
+        # original
+        #f_normal[i] = 0.5 * rho * ((r * omega * (1 + a_prime)) ** 2 + (v0 * (1 - a)) ** 2) * chord * cn * dr
+        #f_tangential[i] = 0.5 * rho * ((r * omega * (1 + a_prime)) ** 2 + (v0 * (1 - a)) ** 2) * chord * ct * dr
         
         induction_axial[i] = a
         induction_tangential[i] = a_prime

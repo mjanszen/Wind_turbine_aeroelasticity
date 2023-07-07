@@ -86,11 +86,11 @@ if __name__ == "__main__":
                      'tsr': 5,
                      'radius': 63,
                      'inner_radius': 1.5,
-                     'time_end': 50,
+                     'time_end': 10,
                      'dt': 0.01,
-                     'pitch': np.deg2rad(10.45),
+                     'pitch': 0, # in degrees!
                      'omega': 12.1 * (2*np.pi /60),     # rpm
-                     'steady': False,                    # Toggle the quasi steady computation
+                     'steady': True,                    # Toggle the quasi steady computation
                      'debug': True
                      }
     # --------------------------------------------------------------------------#
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     # timesteps = int(op_conditions['time_end'] / op_conditions['dt'])
     
     timesteps = int(op_conditions['time_end'] / dt_calc)
-    time_end = timesteps * op_conditions["dt"]  # The real time that can be simulated with the time step size
+    time_end = timesteps * dt_calc  # The real time that can be simulated with the time step size
     time_range= np.linspace(0, time_end, timesteps)  # there probably is a more elegant way to do this
     
     # --------------------------------------------------------------------------#
@@ -153,13 +153,52 @@ if __name__ == "__main__":
     # Compute the mode shape
     phi_edge_aero = np.array([phi_edge(r, op_conditions['radius']) for r in radii_aero])
     phi_flap_aero = np.array([phi_flap(r, op_conditions['radius']) for r in radii_aero])
-
     # Compute the wind speeds over time
     if op_conditions["steady"]:
         wind_speeds = np.ones(len(time_range)) * op_conditions["V"]
     else:
         wind_speeds = get_wind_speed(time_range)
-    
+   
+    # --------------------------------------------------------------------------#
+    # -------------Steady computaiton-------------------------------------------#
+    # --------------------------------------------------------------------------#
+    if op_conditions["steady"]:
+        # To do:
+        # set up result arrays
+        # add function to obtain the f values
+        # add plot for the f, x, over the wind speed
+
+        steady_velocities = [11.4, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+        steady_pitch_angles= [0, 3.83, 6.60, 8.70, 10.45, 12.06, 13.54, 14.92,
+                              16.23, 17.47, 18.70, 19.94, 21.18, 22.35, 23.47]
+        response_2d = np.zeros((len(steady_velocities), 2))
+
+        for i, v in enumerate(steady_velocities):
+            # set unsteady component to 0
+            v_blade_ip = [0] *len(radii_aero)
+            v_blade_oop = [0] * len(radii_aero)
+
+            # Compute aero loads
+            radial_positions, fn, ft, a, a_prime = bem_fsi(v, v_blade_ip, v_blade_oop,
+                                                           op_conditions['omega'], steady_pitch_angles[i])
+            
+            # Set loads at the blade ends to 0 for integration
+            radial_positions = np.array([op_conditions["inner_radius"], *radial_positions, op_conditions["radius"]])
+            fn = np.array([0, *fn, 0])
+            ft = np.array([0, *ft, 0])
+            
+            # Compute structural response
+            response = blade_struct.solve_steady_structure(fn, ft, radial_positions, op_conditions['pitch'])
+
+            response_2d[i] = response[0:2]
+
+        
+        fig, axs = plt.subplots(3, 1)
+        axs[0].plot(steady_velocities, steady_pitch_angles)
+        axs[1].plot(steady_velocities, response_2d[:, 0])
+        axs[2].plot(steady_velocities, response_2d[:, 1])
+        plt.show()
+
     # --------------------------------------------------------------------------#
     # -------------Computation loop---------------------------------------------#
     # --------------------------------------------------------------------------#
@@ -205,6 +244,7 @@ if __name__ == "__main__":
         # -----> needs adaptation, but not required to finish the assignement
         
         results_struct[i] = blade_struct.state  # x, y, x_dot, y_dot
+
         x_dot = blade_struct.state[2]  # update the velocity for the next iteration
         y_dot = blade_struct.state[3]
 
