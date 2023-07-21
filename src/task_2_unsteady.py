@@ -13,7 +13,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from blade_classes import Struct
 from BEM_adapted import bem_fsi, bem_sections, bem
-from structure_equations import phi_edge, phi_flap # , phi_edge_new, phi_flap_new
+from structure_equations import phi_edge_new, phi_flap_new
 import logging
 import os
 import re
@@ -83,11 +83,8 @@ def compute_response():
 if __name__ == "__main__":
     # -- Inputs -----------------------------------------------------------------#
     op_conditions = {'V': 11.4,                         # Only used for steady computations
-                     'tsr': 5,
                      'radius': 63,
                      'inner_radius': 1.5,
-                     'time_end': 10,
-                     'dt': 0.01,
                      'pitch_deg': 10.45,  # in degrees!
                      'omega': 1.267,  # 12.1 * (2*np.pi /60),     # rpm
                      'steady': False,                    # Toggle the quasi steady computation
@@ -105,7 +102,7 @@ if __name__ == "__main__":
     # Create structural object
     # --------------------------------------------------------------------------#
     
-    blade_struct= Struct(structural_data=struct_df, iv=None)
+    blade_struct= Struct(structural_data=struct_df, iv=[3, -0.055, 0, 0])
     blade_struct.set_params(pitch_deg=op_conditions['pitch_deg'], radius=63, root_radius=1.5, damping_ratio=0.00477465)
     blade_struct.compute_equivalent_params()  # computes the M C K stuff
 
@@ -140,7 +137,7 @@ if __name__ == "__main__":
     
     # Time new
     t_end = 17
-    timesteps = t_end * 500 + 1
+    timesteps = t_end * 50 + 1
     time_range = np.linspace(0, t_end, timesteps)
     dt =time_range[1] - time_range[0]
     # --------------------------------------------------------------------------#
@@ -155,61 +152,18 @@ if __name__ == "__main__":
     x_dot = 0  # Initial velocity of the structure
     y_dot = 0
 
-    # Compute the mode shape
-    # phi_edge_aero = np.array([phi_edge_new(r, op_conditions['radius']) for r in radii_aero])
-    # phi_flap_aero = np.array([phi_flap_new(r, op_conditions['radius']) for r in radii_aero])
-    phi_edge_aero = np.array([phi_edge(r, op_conditions['radius']) for r in radii_aero])
-    phi_flap_aero = np.array([phi_flap(r, op_conditions['radius']) for r in radii_aero])
+    # --------------------- Compute the mode shape
+    phi_edge_aero = np.array([phi_edge_new(r, op_conditions['radius']) for r in radii_aero])
+    phi_flap_aero = np.array([phi_flap_new(r, op_conditions['radius']) for r in radii_aero])
+    # phi_edge_aero = np.array([phi_edge(r, op_conditions['radius']) for r in radii_aero])
+    # phi_flap_aero = np.array([phi_flap(r, op_conditions['radius']) for r in radii_aero])
     
-   
-    # Compute the wind speeds over time
+    # --------------------- Compute the wind speeds over time
     if op_conditions["steady"]:
         wind_speeds = np.ones(len(time_range)) * op_conditions["V"]
     else:
         wind_speeds = get_wind_speed(time_range)
    
-    # --------------------------------------------------------------------------#
-    # -------------Steady computaiton-------------------------------------------#
-    # --------------------------------------------------------------------------#
-    if op_conditions["steady"]:
-        # To do:
-
-        steady_velocities = [11.4, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
-        steady_pitch_angles_deg= [0, 3.83, 6.60, 8.70, 10.45, 12.06, 13.54, 14.92,
-                              16.23, 17.47, 18.70, 19.94, 21.18, 22.35, 23.47]
-        response_2d = np.zeros((len(steady_velocities), 2))
-
-        for i, v in enumerate(steady_velocities):
-            # set unsteady component to 0
-            
-            pitch_deg = steady_pitch_angles_deg[i]
-            pitch_rad = np.deg2rad(pitch_deg)
-            v_blade_ip = [0] *len(radii_aero)
-            v_blade_oop = [0] * len(radii_aero)
-            # breakpoint()
-            # Compute aero loads
-            radial_positions, fn, ft, a, a_prime = bem_fsi(v, v_blade_ip, v_blade_oop,
-                                                           op_conditions['omega'], pitch_deg)
-            
-            # Set loads at the blade ends to 0 for integration
-            radial_positions = np.array([op_conditions["inner_radius"], *radial_positions, op_conditions["radius"]])
-            
-            # Add the 0 at tip and root
-            fn = np.array([0, *fn, 0])
-            ft = np.array([0, *ft, 0])
-            
-            # Compute structural response
-            response = blade_struct.solve_steady_structure(fn, ft, radial_positions, pitch_rad)
-
-            response_2d[i] = response[0:2]
-
-        fig, axs = plt.subplots(3, 1)
-        axs[0].plot(steady_velocities, steady_pitch_angles_deg)
-        axs[1].plot(steady_velocities, response_2d[:, 0])
-        axs[2].plot(steady_velocities, response_2d[:, 1])
-        plt.show()
-    
-    breakpoint()
     if op_conditions["test_bem"]:
         # BEM takes degrees, structures takes radian
         v_blade_ip = [0] *len(radii_aero)
@@ -277,6 +231,7 @@ if __name__ == "__main__":
         y_dot = blade_struct.state[3]
 
     print("Done with the computation! :)")
+    breakpoint()
    
     # Some simple plotting. Maybe save to pickle and make a nicer plotting script?
     fig, axs = plt.subplots(5, 1)

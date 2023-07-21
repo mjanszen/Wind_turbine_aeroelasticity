@@ -3,7 +3,7 @@ import pandas as pd
 import glob
 
 
-def bem(v0, omega, pitch):
+def bem(v0, omega, pitch_deg):
     # Fixed parameters
     B = 3             # Number of blades
     R = 63            # Rotor radius
@@ -70,7 +70,7 @@ def bem(v0, omega, pitch):
             phi = np.rad2deg(phi)
 
             # Angle of attack (AOA)
-            alpha = phi - theta - pitch
+            alpha = phi - theta - pitch_deg
 
             # Find Cl and Cd
             cl_current = np.interp(alpha, alpha_table, cl_table)
@@ -125,7 +125,7 @@ def bem_sections():
     return len(blade_section), blade_section[:, 2]
 
 
-def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch):
+def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch_deg):
     # Fixed parameters
     B = 3             # Number of blades
     R = 63            # Rotor radius
@@ -192,11 +192,11 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch):
             a_prime = ax_prime
 
             # Inflow angle
-            phi = np.arctan(((1 - a) * v0 - v_blade_oop[i])/(((1 + a_prime) * r * omega) - v_blade_ip[i]))
+            phi = np.arctan(((1 - a) * v0 - v_blade_oop[i])/(((1 + a_prime) * r * omega) + v_blade_ip[i]))
             phi = np.rad2deg(phi)
 
             # Angle of attack (AOA)
-            alpha = phi - theta - pitch  # in degrees
+            alpha = phi - theta - pitch_deg  # in degrees
 
             # Find Cl and Cd
             cl_current = np.interp(alpha, alpha_table, cl_table)
@@ -243,8 +243,8 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch):
         a_prime = ax_prime
 
         # Forces in two directions -----> per unit length !
-        f_normal[i] = 0.5 * rho * ((r * omega * (1 + a_prime)- v_blade_ip[i]) ** 2 + (v0 * (1 - a)- v_blade_oop[i]) ** 2) * chord * cn
-        f_tangential[i] = 0.5 * rho * ((r * omega * (1 + a_prime)- v_blade_ip[i]) ** 2 + (v0 * (1 - a)- v_blade_oop[i]) ** 2) * chord * ct
+        f_normal[i] = 0.5 * rho * ((r * omega * (1 + a_prime) + v_blade_ip[i]) ** 2 + (v0 * (1 - a)- v_blade_oop[i]) ** 2) * chord * cn
+        f_tangential[i] = 0.5 * rho * ((r * omega * (1 + a_prime)+ v_blade_ip[i]) ** 2 + (v0 * (1 - a)- v_blade_oop[i]) ** 2) * chord * ct
        
         # original
         #f_normal[i] = 0.5 * rho * ((r * omega * (1 + a_prime)) ** 2 + (v0 * (1 - a)) ** 2) * chord * cn * dr

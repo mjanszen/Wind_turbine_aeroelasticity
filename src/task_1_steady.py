@@ -13,7 +13,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from blade_classes import Struct
 from BEM_adapted import bem_fsi, bem_sections, bem
-from structure_equations import phi_edge, phi_flap # , phi_edge_new, phi_flap_new
+from structure_equations import phi_edge, phi_flap, phi_edge_new, phi_flap_new
 import logging
 import os
 import re
@@ -25,14 +25,6 @@ logging.basicConfig(encoding='utf-8', level=logging.DEBUG)
 # --------------------------------------------------------------------------#
 # -------------  Functions--------------------------------------------------#
 # --------------------------------------------------------------------------#
-
-def get_wind_speed(t):
-    """
-    Get the wind speed at time(s) t based on the prescribed function
-    """
-    v = 15 + 0.5*np.cos(1.267*t) + 0.085*np.cos(2.534 * t) + 0.015 * np.cos(3.801 * t)
-    return v
-
 
 def read_aero_files(path: str):
     """
@@ -68,13 +60,6 @@ def read_struct_file(path="../data/Blade/structural_data.dat"):
     structural_df = pd.read_csv(path, sep='\s+', skiprows=[1])
     return structural_df
 
-def compute_response():
-    """
-    Compute the structural response for a given load
-    """
-
-    pass
-
 
 # --------------------------------------------------------------------------#
 # -------------  MAIN  -----------------------------------------------------#
@@ -83,14 +68,11 @@ def compute_response():
 if __name__ == "__main__":
     # -- Inputs -----------------------------------------------------------------#
     op_conditions = {'V': 11.4,                         # Only used for steady computations
-                     'tsr': 5,
                      'radius': 63,
                      'inner_radius': 1.5,
-                     'time_end': 10,
-                     'dt': 0.01,
                      'pitch_deg': 10.45,  # in degrees!
                      'omega': 1.267,  # 12.1 * (2*np.pi /60),     # rpm
-                     'steady': False,                    # Toggle the quasi steady computation
+                     'steady': True,                    # Toggle the quasi steady computation
                      'debug': True,
                      'test_bem': False
                      }
@@ -155,18 +137,14 @@ if __name__ == "__main__":
     x_dot = 0  # Initial velocity of the structure
     y_dot = 0
 
-    # Compute the mode shape
-    # phi_edge_aero = np.array([phi_edge_new(r, op_conditions['radius']) for r in radii_aero])
-    # phi_flap_aero = np.array([phi_flap_new(r, op_conditions['radius']) for r in radii_aero])
-    phi_edge_aero = np.array([phi_edge(r, op_conditions['radius']) for r in radii_aero])
-    phi_flap_aero = np.array([phi_flap(r, op_conditions['radius']) for r in radii_aero])
+    # ------------------ Compute the mode shape
+    phi_edge_aero = np.array([phi_edge_new(r, op_conditions['radius']) for r in radii_aero])
+    phi_flap_aero = np.array([phi_flap_new(r, op_conditions['radius']) for r in radii_aero])
+    # phi_edge_aero = np.array([phi_edge(r, op_conditions['radius']) for r in radii_aero])
+    # phi_flap_aero = np.array([phi_flap(r, op_conditions['radius']) for r in radii_aero])
     
-   
-    # Compute the wind speeds over time
-    if op_conditions["steady"]:
-        wind_speeds = np.ones(len(time_range)) * op_conditions["V"]
-    else:
-        wind_speeds = get_wind_speed(time_range)
+    # ------------------ Compute the wind speeds over time
+    wind_speeds = np.ones(len(time_range)) * op_conditions["V"]
    
     # --------------------------------------------------------------------------#
     # -------------Steady computaiton-------------------------------------------#
@@ -222,80 +200,3 @@ if __name__ == "__main__":
         
         s_radial_positions, s_fn, s_ft, power= bem(vi, c_omega, c_pitch)
         breakpoint()
-
-    # --------------------------------------------------------------------------#
-    # -------------Computation loop---------------------------------------------#
-    # --------------------------------------------------------------------------#
-    
-    # 1. Compute the velocities based on the structural response (x_dot, y_dot) at each blade element
-    # 2. Compute the aerodynamic loads using BEM
-    # 3. Compute the structural response with the 2D structure model
-    # 4. Save the results
-
-    # --------------------------------------------------------------------------#
-    pitch_deg = op_conditions["pitch_deg"]
-    pitch_rad = np.deg2rad(pitch_deg)
-    breakpoint()
-    for i, t in enumerate(time_range[:-1]):
-        
-        # 1. Set the velocity per section vector
-
-        # Ritz method: u = phi(r) * x_dot(t)
-        # breakpoint()
-        v_blade_edge = phi_edge_aero * x_dot
-        v_blade_flap = phi_flap_aero * y_dot
-        
-        # Movement of the blade in the rotor coordinate system
-        v_blade_oop = v_blade_edge * np.sin(pitch_rad) + v_blade_flap * np.cos(pitch_rad)
-        v_blade_ip = v_blade_edge * np.cos(pitch_rad) - v_blade_flap * np.sin(pitch_rad)
-        
-        # These should be subtracted from the wind velcities!
-               
-        # 2. Compute the aerodynamic loads using BEM
-        radial_positions, fn, ft, a, a_prime = bem_fsi(wind_speeds[i], v_blade_ip, v_blade_oop,
-                                                       op_conditions['omega'], pitch_deg)
-
-        # Set loads at the blade ends to 0 for integration
-        radial_positions = np.array([op_conditions["inner_radius"], *radial_positions, op_conditions["radius"]])
-        fn = np.array([0, *fn, 0])
-        ft = np.array([0, *ft, 0])
-
-        # Time used in the integration of the structure response
-        time_span = time_range[i:i+2]  # last index is not included. Due to that, the step is 2
-       
-        # 3. Compute the structural response with the 2D structure model
-        blade_struct.solve_structure(fn, ft, radial_positions, time_span, pitch_rad)
-
-        # 4. Save the outputs
-        # results_aero.append(aero_loads)  # Cl, Cd, fn, ft, a, a_prime
-        # results_aero[i] = aero_loads
-        # -----> needs adaptation, but not required to finish the assignement
-        
-        results_struct[i] = blade_struct.state  # x, y, x_dot, y_dot
-
-        x_dot = blade_struct.state[2]  # update the velocity for the next iteration
-        y_dot = blade_struct.state[3]
-
-    print("Done with the computation! :)")
-   
-    # Some simple plotting. Maybe save to pickle and make a nicer plotting script?
-    fig, axs = plt.subplots(5, 1)
-    #breakpoint()
-    axs[0].plot(time_range, wind_speeds, label="wind speed")
-    axs[1].plot(time_range, results_struct[:, 0], label="tip deflection flap")  # plot x deflection
-    axs[2].plot(time_range, results_struct[:, 1], label="tip deflection edge")  # plot y deflection
-    axs[3].plot(time_range, results_struct[:, 2], label="tip deflection flap acc")  # plot x deflection
-    axs[4].plot(time_range, results_struct[:, 3], label="tip deflection edge acc")  # plot y deflection
-    
-    # Formatiing
-    axs[0].legend()
-    axs[1].legend()
-    axs[2].legend()
-    axs[3].legend()
-    axs[4].legend()
-    axs[0].grid()
-    axs[1].grid()
-    axs[2].grid()
-    axs[3].grid()
-    axs[4].grid()
-    plt.show()

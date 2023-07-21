@@ -20,10 +20,31 @@ def phi_edge(r: float, R: float):
     # poly1D has different order than polynomial
     # poly1D needs highest polynomial first
     # polynomial_coeffs = [-0.6952, 2.376, -3.5772, 2.5337, 0.3627, 0, 0]
+    breakpoint()
     polynomial_coeffs = [-0.6952/(R**6), 2.376/(R**5), -3.5772/(R**4), 2.5337/(R**3), 0.3627/(R**2), 0, 0]
     # phi = np.poly1d(polynomial_coeffs)
     phi = np.polynomial.polynomial.Polynomial(polynomial_coeffs[::-1])
     return phi(r)
+
+
+def phi_edge_new(r: float, R: float):
+    """
+    Eigenform of the edgewise first mode
+    
+    :r: local radial position
+    :R: Maximumm radius
+    :phi: displacement from eigenform at given position
+    """
+    #r -= 1.5
+    #R -= 1.5
+    # poly1D has different order than polynomial
+    # poly1D needs highest polynomial first
+    # polynomial_coeffs = [-0.6952, 2.376, -3.5772, 2.5337, 0.3627, 0, 0]
+    polynomial_coeffs = [-0.6952/((R-1.5)**6), 2.376/((R-1.5)**5),
+                         -3.5772/((R-1.5)**4), 2.5337/((R-1.5)**3), 0.3627/((R-1.5)**2), 0, 0]
+    # phi = np.poly1d(polynomial_coeffs)
+    phi = np.polynomial.polynomial.Polynomial(polynomial_coeffs[::-1])
+    return phi(r - 1.5)
 
 
 def phi_flap(r: float, R: float):
@@ -34,12 +55,33 @@ def phi_flap(r: float, R: float):
     :R: Maximumm radius
     :phi: displacement from eigenform at given position
     """
+    breakpoint()
     # poly1D has different order than polynomial
     # poly1D needs highest polynomial first
     polynomial_coeffs = [-2.2555/(R**6), 4.7131/(R**5), -3.2452/(R**4), 1.7254/(R**3), 0.0622/(R**2), 0, 0]
     # phi = np.poly1d(polynomial_coeffs)
     phi = np.polynomial.polynomial.Polynomial(polynomial_coeffs[::-1])
     return phi(r)
+
+
+def phi_flap_new(r: float, R: float):
+    """
+    Eigenform of the flapwise first mode
+    
+    :r: local radial position
+    :R: Maximumm radius
+    :phi: displacement from eigenform at given position
+    """
+    #r -=1.5
+    #R -=1.5
+    
+    # poly1D has different order than polynomial
+    # poly1D needs highest polynomial first
+    polynomial_coeffs = [-2.2555/((R-1.5)**6), 4.7131/((R-1.5)**5), -3.2452/((R-1.5)**4),
+                         1.7254/((R-1.5)**3), 0.0622/((R-1.5)**2), 0, 0]
+    # phi = np.poly1d(polynomial_coeffs)
+    phi = np.polynomial.polynomial.Polynomial(polynomial_coeffs[::-1])
+    return phi(r-1.5)
 
 
 def phi_edge_d2(r: float, R: float):
@@ -50,6 +92,7 @@ def phi_edge_d2(r: float, R: float):
     :R: Maximumm radius
     :phi: displacement from eigenform at given position
     """
+    breakpoint()
     # poly1D has different order than polynomial
     # poly1D needs highest polynomial first
     # polynomial_coeffs = [-0.6952, 2.376, -3.5772, 2.5337, 0.3627, 0, 0]
@@ -59,7 +102,41 @@ def phi_edge_d2(r: float, R: float):
     return phi_d2(r)
 
 
+def phi_edge_d2_new(r: float, R: float):
+    """
+    Eigenform of the edgewise first mode
+    
+    :r: local radial position
+    :R: Maximumm radius
+    :phi: displacement from eigenform at given position
+    """
+    # poly1D has different order than polynomial
+    # poly1D needs highest polynomial first
+    # polynomial_coeffs = [-0.6952, 2.376, -3.5772, 2.5337, 0.3627, 0, 0]
+    polynomial_coeffs = [-0.6952/((R-1.5)**6), 2.376/((R-1.5)**5), -3.5772/((R-1.5)**4),
+                         2.5337/((R-1.5)**3), 0.3627/((R-1.5)**2), 0, 0]
+    phi = np.polynomial.polynomial.Polynomial(polynomial_coeffs[::-1])
+    phi_d2= phi.deriv(2)
+    return phi_d2(r-1.5)
+
 def phi_flap_d2(r: float, R: float):
+    """
+    Eigenform of the flapwise first mode
+    
+    :r: ratio radial position to blade length!
+    :phi: displacement from eigenform at given position
+    """
+    breakpoint()
+    # poly1D has different order than polynomial
+    # poly1D needs highest polynomial first
+    # polynomial_coeffs = [-2.2555, 4.7131, -3.2452, 1.7254, 0.0622, 0, 0]
+    polynomial_coeffs = [-2.2555/(R**6), 4.7131/(R**5), -3.2452/(R**4), 1.7254/(R**3), 0.0622/(R**2), 0, 0]
+    phi = np.polynomial.polynomial.Polynomial(polynomial_coeffs[::-1])
+    phi_d2= phi.deriv(2)
+    return phi_d2(r)
+
+
+def phi_flap_d2_new(r: float, R: float):
     """
     Eigenform of the flapwise first mode
     
@@ -69,10 +146,11 @@ def phi_flap_d2(r: float, R: float):
     # poly1D has different order than polynomial
     # poly1D needs highest polynomial first
     # polynomial_coeffs = [-2.2555, 4.7131, -3.2452, 1.7254, 0.0622, 0, 0]
-    polynomial_coeffs = [-2.2555/(R**6), 4.7131/(R**5), -3.2452/(R**4), 1.7254/(R**3), 0.0622/(R**2), 0, 0]
+    polynomial_coeffs = [-2.2555/((R-1.5)**6), 4.7131/((R-1.5)**5), -3.2452/((R-1.5)**4),
+                         1.7254/((R-1.5)**3), 0.0622/((R-1.5)**2), 0, 0]
     phi = np.polynomial.polynomial.Polynomial(polynomial_coeffs[::-1])
     phi_d2= phi.deriv(2)
-    return phi_d2(r)
+    return phi_d2(r-1.5)
 
 
 def system_of_odes(t, y, m, c, k, f):
