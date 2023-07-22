@@ -122,7 +122,9 @@ def bem(v0, omega, pitch_deg):
 
 def bem_sections():
     blade_section = np.loadtxt('../data/Blade/blade_section/blade_section.dat', skiprows=1)
-    return len(blade_section), blade_section[:, 2]
+    twist = blade_section[:, 4]
+    dr = blade_section[:, 3]
+    return len(blade_section), blade_section[:, 2], twist, dr
 
 
 def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch_deg):
@@ -131,7 +133,7 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch_deg):
     R = 63            # Rotor radius
     hub_rad = 1.5     # Hub radius
     rho = 1.225       # Density of air
-    #pitch = np.rad2deg(pitch)  # used in degrees here !
+    # pitch = np.rad2deg(pitch)  # used in degrees here !
     
     precision_tolerance = 0.00001     # Iterative precision tolerance
 
@@ -182,7 +184,6 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch_deg):
 
         n_iter = 0  # Iteration counter
       
-        #breakpoint()
         # Iteration, stop when error is smaller than precision_tolerance
         while abs(ax - a) >= precision_tolerance or abs(ax_prime - a_prime) >= precision_tolerance:
             n_iter += 1
@@ -254,7 +255,6 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch_deg):
         induction_tangential[i] = a_prime
         cl_list[i] = cl_current
         cd_list[i] = cd_current
-
     M = np.sum(f_tangential * radii)        # Rotor torque from one blade
     power = M * omega * 3 * 0.944           # Power
     return radii, f_normal, f_tangential, induction_axial, induction_tangential

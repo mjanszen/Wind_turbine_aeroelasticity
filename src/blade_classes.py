@@ -3,7 +3,7 @@
 #
 # Define the blade class
 #
-from structure_equations import phi_edge_new, phi_flap_new, phi_edge_d2_new, phi_flap_d2_new, system_of_odes
+from structure_equations import phi_edge_new, phi_flap_new, phi_edge_d2_new, phi_flap_d2_new, system_of_odes_new, system_of_odes
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 import numpy as np
@@ -148,12 +148,48 @@ class Struct():
         # f_flap = np.trapz(np.multiply(self.f_flap, self.phi_flap_spanwise))
         # plt.plot(self.discretization, self.f_flap)
         # plt.show()
-        # breakpoint()
         f_edge = np.trapz(np.multiply(self.f_edge, self.phi_edge_spanwise), self.discretization)
         f_flap = np.trapz(np.multiply(self.f_flap, self.phi_flap_spanwise), self.discretization)
         self.f = np.array([f_flap, f_edge])  # ---------> This needs to be changed every step
         logging.debug(self.f)
-        #breakpoint()
+
+    def _compute_equi_forces_new(self, f_bem_edge, f_bem_flap, bem_radii, dr, integrate=False):
+        """
+        Compute equivalent force vector
+        
+        These needs to be updated every time step using the loads from bem
+        Used equations are explained in the lecture slides
+        Use the right integration !
+
+        """
+        # Compute equivalent forces
+
+        # K = int (EI d2 phidr ^2) dr
+        # f_edge = np.trapz(np.multiply(self.f_edge, self.phi_edge_spanwise))
+        # f_flap = np.trapz(np.multiply(self.f_flap, self.phi_flap_spanwise))
+        # plt.plot(self.discretization, self.f_flap)
+        # plt.show()
+        if integrate:
+            try:
+                f_edge = np.trapz(np.multiply(f_bem_edge, self.phi_edge_spanwise_aero), bem_radii)
+                f_flap = np.trapz(np.multiply(f_bem_flap, self.phi_flap_spanwise_aero), bem_radii)
+            except AttributeError:
+                self.phi_edge_spanwise_aero = phi_edge_new(bem_radii, self.radius)
+                self.phi_flap_spanwise_aero = phi_flap_new(bem_radii, self.radius)
+                f_edge = np.trapz(np.multiply(f_bem_edge, self.phi_edge_spanwise_aero), bem_radii)
+                f_flap = np.trapz(np.multiply(f_bem_flap, self.phi_flap_spanwise_aero), bem_radii)
+        else:
+            try:
+                f_edge = np.sum(f_bem_edge * self.phi_edge_spanwise_aero * dr)
+                f_flap = np.sum(f_bem_flap * self.phi_flap_spanwise_aero * dr)
+            except AttributeError:
+                self.phi_edge_spanwise_aero = phi_edge_new(bem_radii, self.radius)
+                self.phi_flap_spanwise_aero = phi_flap_new(bem_radii, self.radius)
+                f_edge = np.sum(f_bem_edge * self.phi_edge_spanwise_aero * dr)
+                f_flap = np.sum(f_bem_flap * self.phi_flap_spanwise_aero * dr)
+
+        self.f = np.array([f_flap, f_edge])  # ---------> This needs to be changed every step
+        logging.debug(self.f)
 
     def _apply_unit_loads(self, f_bem_edge, f_bem_flap, bem_radii):
         """
@@ -179,42 +215,47 @@ class Struct():
         # Get information like discretization
         # create structural prop matrices for computations
     
-    def _loads_to_blade_coords(self, f_bem_normal, f_bem_tangential, pitch_rad):
+    def _loads_to_blade_coords(self, f_bem_normal, f_bem_tangential, pitch_rad, twist_rad):
         """
         Function to turn the loads into the coord system of a blade
         These are distributed along the blade
         """
         
-        #theta = self.pitch + self.section_data.AeroTwst
+        # theta = self.pitch + self.section_data.AeroTwst
         # f_edge = f_bem_normal * np.cos(self.pitch) + f_bem_tangential * np.sin(self.pitch)
         # f_flap = f_bem_normal * np.sin(self.pitch) - f_bem_tangential * np.cos(self.pitch)
         
-        f_flap = f_bem_normal * np.cos(pitch_rad) + f_bem_tangential * np.sin(pitch_rad)
-        f_edge = f_bem_normal * np.sin(pitch_rad) - f_bem_tangential * np.cos(pitch_rad)
+        f_flap = f_bem_normal * np.cos(pitch_rad + twist_rad) + f_bem_tangential * np.sin(pitch_rad + twist_rad)
+        f_edge = f_bem_normal * np.sin(pitch_rad + twist_rad) - f_bem_tangential * np.cos(pitch_rad + twist_rad)
 
         return f_edge, f_flap
 
-    def solve_structure(self, f_bem_normal, f_bem_tangential, bem_radii, time_span, pitch_rad):
+    def solve_structure(self, f_bem_normal, f_bem_tangential, bem_radii, dr, time_span, pitch_rad, twist_rad):
         """
         Compute structural response from aero loads state of the blade
         """
         # 1. Switch to blade coordinate system
-        f_bem_edge, f_bem_flap = self._loads_to_blade_coords(f_bem_normal, f_bem_tangential, pitch_rad)
-        
+        f_bem_edge, f_bem_flap = self._loads_to_blade_coords(f_bem_normal, f_bem_tangential, pitch_rad, twist_rad)
         # 2. Force interpolation onto the discretization of the structure
         # ---> not necessary
-        self._apply_unit_loads(f_bem_edge, f_bem_flap, bem_radii)  # --> self.f_edge, self.f_flap
+        # self._apply_unit_loads(f_bem_edge, f_bem_flap, bem_radii)  # --> self.f_edge, self.f_flap
         
         # 3. Compute equivalent force
-        self._compute_equivalent_forces()  # --> Force along the blade to equivalent force vector in 2D
+        # self._compute_equivalent_forces()  # --> Force along the blade to equivalent force vector in 2D
+        # self._compute_equi_forces_new()  # --> Force along the blade to equivalent force vector in 2D
+        self._compute_equi_forces_new(f_bem_edge, f_bem_flap, bem_radii, dr)
 
         # 3. Solve ode
         logging.debug(time_span)
-        solution = solve_ivp(system_of_odes, time_span, self.state, args=(self.m, self.c, self.k, self.f))
+        t_eval = np.linspace(time_span[0], time_span[1], 20)
+        solution = solve_ivp(system_of_odes, time_span, self.state, method="LSODA",
+                             t_eval=t_eval, args=(self.m, self.c, self.k, self.f))
+        # solution_2 = solve_ivp(system_of_odes, time_span, self.state, args=(self.m, self.c, self.k, self.f))
         if solution.success is not True:
             breakpoint()
             logging.warning("Structural solver did not converge!")
         self.state = solution.y[:, -1]
+        # breakpoint()
         logging.debug(self.state)
 
     def solve_steady_structure(self, f_bem_normal, f_bem_tangential, bem_radii, pitch_rad):
@@ -222,7 +263,6 @@ class Struct():
         Compute the steady response of the structure. Reduces the Equation of motion to kx = f
         """
         # 1. Switch to blade coordinate system
-        # breakpoint()
         # pitch_rad = np.deg2rad(pitch_deg)
         f_bem_edge, f_bem_flap = self._loads_to_blade_coords(f_bem_normal, f_bem_tangential, pitch_rad)
         
@@ -236,7 +276,6 @@ class Struct():
         # 3. Solve EOM : x = f/k
         
         x= self.f / self.k
-        #breakpoint()
         self.state = np.concatenate((x.diagonal(), [0, 0]))
         logging.debug(self.state)
         return self.state

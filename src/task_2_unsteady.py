@@ -102,7 +102,8 @@ if __name__ == "__main__":
     # Create structural object
     # --------------------------------------------------------------------------#
     
-    blade_struct= Struct(structural_data=struct_df, iv=[3, -0.055, 0, 0])
+    # blade_struct= Struct(structural_data=struct_df, iv=[3, -0.055, 0, 0])
+    blade_struct= Struct(structural_data=struct_df, iv=[0, 0, 0, 0])
     blade_struct.set_params(pitch_deg=op_conditions['pitch_deg'], radius=63, root_radius=1.5, damping_ratio=0.00477465)
     blade_struct.compute_equivalent_params()  # computes the M C K stuff
 
@@ -136,15 +137,16 @@ if __name__ == "__main__":
     #time_range= np.linspace(0, time_end, timesteps)  # there probably is a more elegant way to do this
     
     # Time new
-    t_end = 17
-    timesteps = t_end * 50 + 1
+    t_end = 100
+    timesteps = t_end * 20 + 1
     time_range = np.linspace(0, t_end, timesteps)
     dt =time_range[1] - time_range[0]
     # --------------------------------------------------------------------------#
     # Initialize initial conditions and result arrays
     # --------------------------------------------------------------------------#
    
-    n_sections, radii_aero = bem_sections()  # looks how many sections there are in the input file
+    n_sections, radii_aero, twist_deg, dr = bem_sections()  # looks how many sections there are in the input file
+    twist_rad = np.deg2rad(twist_deg)
 
     results_aero = np.zeros([timesteps, n_sections +2])  # For integration we need to add the 0 at the root and tip
     results_struct = np.zeros([timesteps, 4])  # x, y , xdot, ydot
@@ -196,8 +198,8 @@ if __name__ == "__main__":
 
         # Ritz method: u = phi(r) * x_dot(t)
         # breakpoint()
-        v_blade_edge = phi_edge_aero * x_dot
-        v_blade_flap = phi_flap_aero * y_dot
+        v_blade_flap = phi_edge_aero * x_dot
+        v_blade_edge = phi_flap_aero * y_dot
         
         # Movement of the blade in the rotor coordinate system
         v_blade_oop = v_blade_edge * np.sin(pitch_rad) + v_blade_flap * np.cos(pitch_rad)
@@ -210,15 +212,15 @@ if __name__ == "__main__":
                                                        op_conditions['omega'], pitch_deg)
 
         # Set loads at the blade ends to 0 for integration
-        radial_positions = np.array([op_conditions["inner_radius"], *radial_positions, op_conditions["radius"]])
-        fn = np.array([0, *fn, 0])
-        ft = np.array([0, *ft, 0])
+        # radial_positions = np.array([op_conditions["inner_radius"], *radial_positions, op_conditions["radius"]])
+        # fn = np.array([0, *fn, 0])
+        # ft = np.array([0, *ft, 0])
 
         # Time used in the integration of the structure response
         time_span = time_range[i:i+2]  # last index is not included. Due to that, the step is 2
        
         # 3. Compute the structural response with the 2D structure model
-        blade_struct.solve_structure(fn, ft, radial_positions, time_span, pitch_rad)
+        blade_struct.solve_structure(fn, ft, radial_positions, dr, time_span, pitch_rad, twist_rad)
 
         # 4. Save the outputs
         # results_aero.append(aero_loads)  # Cl, Cd, fn, ft, a, a_prime

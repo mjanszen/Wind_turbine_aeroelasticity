@@ -166,3 +166,22 @@ def system_of_odes(t, y, m, c, k, f):
     dy2_dt = -(np.linalg.inv(m) @ c) @ y2 -(np.linalg.inv(m) @ k) @ y1 + np.linalg.inv(m) @ f
 
     return np.concatenate([dy1_dt, dy2_dt])
+
+
+def system_of_odes_new(t, y, m, c, k, f):
+    """
+    New system based on Pin
+    """
+    z1 = y[0]  # Displacement of the first DOF
+    z2 = y[1]  # y(2); % Velocity of the first DOF
+    v1 = y[2]  # y(3); % Displacement of the second DOF
+    v2 = y[3]  # y(4); % Velocity of the second DOF
+
+    dz1dt = v1  # ; % Derivative of displacement of the first DOF is velocity
+    dz2dt = v2  # ; % Derivative of displacement of the second DOF is velocity
+
+    dv1dt = (f[0] - c[0, 0] * v1 - k[0, 0] * z1) / m[0, 0]
+    dv2dt = (f[1] - c[1, 1] * v2 - k[1, 1] * z2) / m[1, 1]  # % Equation of motion for the second DOF
+
+    dydt = [dz1dt, dz2dt, dv1dt, dv2dt]
+    return dydt
