@@ -19,7 +19,7 @@ import os
 import re
 
 # Set up a logger that can be used to debug. Change the level to silence output
-logging.basicConfig(encoding='utf-8', level=logging.DEBUG)
+logging.basicConfig(encoding='utf-8', level=logging.INFO)
 
 
 # --------------------------------------------------------------------------#
@@ -68,13 +68,6 @@ def read_struct_file(path="../data/Blade/structural_data.dat"):
     structural_df = pd.read_csv(path, sep='\s+', skiprows=[1])
     return structural_df
 
-def compute_response():
-    """
-    Compute the structural response for a given load
-    """
-
-    pass
-
 
 # --------------------------------------------------------------------------#
 # -------------  MAIN  -----------------------------------------------------#
@@ -85,13 +78,14 @@ if __name__ == "__main__":
     op_conditions = {'V': 11.4,                         # Only used for steady computations
                      'radius': 63,
                      'inner_radius': 1.5,
-                     'pitch_deg': 10.45,  # in degrees!
-                     'omega': 1.267,  # 12.1 * (2*np.pi /60),     # rpm
-                     'steady': False,                    # Toggle the quasi steady computation
-                     'debug': True,
+                     'pitch_deg': 10.45,                # in degrees!
+                     'omega': 1.267,                    # 12.1 * (2*np.pi /60),     # rpm
+                     'steady': False,                   # Toggle the quasi steady computation
+                     'debug': False,
                      'test_bem': False
                      }
     
+    logging.info("Setting up the computations")
     # --------------------------------------------------------------------------#
     # Read in files
     # --------------------------------------------------------------------------#
@@ -102,7 +96,7 @@ if __name__ == "__main__":
     # Create structural object
     # --------------------------------------------------------------------------#
     
-    # blade_struct= Struct(structural_data=struct_df, iv=[3, -0.055, 0, 0])
+    # blade_struct= Struct(structural_data=struct_df, iv=[3, -0.055, 0, 0]) # better IVs
     blade_struct= Struct(structural_data=struct_df, iv=[0, 0, 0, 0])
     blade_struct.set_params(pitch_deg=op_conditions['pitch_deg'], radius=63, root_radius=1.5, damping_ratio=0.00477465)
     blade_struct.compute_equivalent_params()  # computes the M C K stuff
@@ -124,47 +118,40 @@ if __name__ == "__main__":
     # --------------------------------------------------------------------------#
     
     # --------------------------------------------------------------------------#
-    # Compute time step size based on the structural time scales
+    # Compute time step size
     # --------------------------------------------------------------------------#
 
-    #period = 1/ np.max(eigenfreq_Hz)  # base on the fastest scale
-    #dt_calc = 0.01 * period  # define number of points per period
-    # logging.warning('Implement the time step so that it cannot lead to problems at division')
-    # timesteps = int(op_conditions['time_end'] / op_conditions['dt'])
-    
-    #timesteps = int(op_conditions['time_end'] / dt_calc)
-    #time_end = timesteps * dt_calc  # The real time that can be simulated with the time step size
-    #time_range= np.linspace(0, time_end, timesteps)  # there probably is a more elegant way to do this
-    
-    # Time new
     t_end = 100
     timesteps = t_end * 20 + 1
     time_range = np.linspace(0, t_end, timesteps)
     dt =time_range[1] - time_range[0]
+    
     # --------------------------------------------------------------------------#
-    # Initialize initial conditions and result arrays
+    # Initialize initial conditions and result arrays, set up some required inputs
     # --------------------------------------------------------------------------#
    
-    n_sections, radii_aero, twist_deg, dr = bem_sections()  # looks how many sections there are in the input file
+    n_sections, radii_aero, twist_deg, dr = bem_sections()  # looks up the blade data
     twist_rad = np.deg2rad(twist_deg)
+    
+    pitch_deg = op_conditions["pitch_deg"]
+    pitch_rad = np.deg2rad(pitch_deg)
 
     results_aero = np.zeros([timesteps, n_sections +2])  # For integration we need to add the 0 at the root and tip
     results_struct = np.zeros([timesteps, 4])  # x, y , xdot, ydot
-    
+   
+    # x: flapwise, y: edgewise
     x_dot = 0  # Initial velocity of the structure
     y_dot = 0
 
     # --------------------- Compute the mode shape
     phi_edge_aero = np.array([phi_edge_new(r, op_conditions['radius']) for r in radii_aero])
     phi_flap_aero = np.array([phi_flap_new(r, op_conditions['radius']) for r in radii_aero])
-    # phi_edge_aero = np.array([phi_edge(r, op_conditions['radius']) for r in radii_aero])
-    # phi_flap_aero = np.array([phi_flap(r, op_conditions['radius']) for r in radii_aero])
     
     # --------------------- Compute the wind speeds over time
     if op_conditions["steady"]:
         wind_speeds = np.ones(len(time_range)) * op_conditions["V"]
     else:
-        wind_speeds = get_wind_speed(time_range)
+        wind_speeds = get_wind_speed(time_range)  # this is the normal behaviour
    
     if op_conditions["test_bem"]:
         # BEM takes degrees, structures takes radian
@@ -187,62 +174,50 @@ if __name__ == "__main__":
     # 2. Compute the aerodynamic loads using BEM
     # 3. Compute the structural response with the 2D structure model
     # 4. Save the results
+    logging.info("Start computation")
 
-    # --------------------------------------------------------------------------#
-    pitch_deg = op_conditions["pitch_deg"]
-    pitch_rad = np.deg2rad(pitch_deg)
-    breakpoint()
     for i, t in enumerate(time_range[:-1]):
         
         # 1. Set the velocity per section vector
 
         # Ritz method: u = phi(r) * x_dot(t)
-        # breakpoint()
         v_blade_flap = phi_edge_aero * x_dot
         v_blade_edge = phi_flap_aero * y_dot
         
         # Movement of the blade in the rotor coordinate system
         v_blade_oop = v_blade_edge * np.sin(pitch_rad) + v_blade_flap * np.cos(pitch_rad)
         v_blade_ip = v_blade_edge * np.cos(pitch_rad) - v_blade_flap * np.sin(pitch_rad)
-        
         # These should be subtracted from the wind velcities!
                
         # 2. Compute the aerodynamic loads using BEM
         radial_positions, fn, ft, a, a_prime = bem_fsi(wind_speeds[i], v_blade_ip, v_blade_oop,
                                                        op_conditions['omega'], pitch_deg)
 
-        # Set loads at the blade ends to 0 for integration
-        # radial_positions = np.array([op_conditions["inner_radius"], *radial_positions, op_conditions["radius"]])
-        # fn = np.array([0, *fn, 0])
-        # ft = np.array([0, *ft, 0])
-
+        # 3. Compute the structural response with the 2D structure model
+        
         # Time used in the integration of the structure response
         time_span = time_range[i:i+2]  # last index is not included. Due to that, the step is 2
-       
-        # 3. Compute the structural response with the 2D structure model
         blade_struct.solve_structure(fn, ft, radial_positions, dr, time_span, pitch_rad, twist_rad)
 
         # 4. Save the outputs
-        # results_aero.append(aero_loads)  # Cl, Cd, fn, ft, a, a_prime
-        # results_aero[i] = aero_loads
-        # -----> needs adaptation, but not required to finish the assignement
-        
-        results_struct[i] = blade_struct.state  # x, y, x_dot, y_dot
+        results_struct[i] = blade_struct.state  # x, y, x_dot, y_dot or z_flap, z_edge, v_flap, v_edge
 
         x_dot = blade_struct.state[2]  # update the velocity for the next iteration
         y_dot = blade_struct.state[3]
 
-    print("Done with the computation! :)")
-    breakpoint()
+    logging.info("Done with the computation! :)")
+    
+    # --------------------------------------------------------------------------#
+    # Plotting
+    # --------------------------------------------------------------------------#
    
-    # Some simple plotting. Maybe save to pickle and make a nicer plotting script?
+    logging.info("Making plots")
     fig, axs = plt.subplots(5, 1)
-    #breakpoint()
     axs[0].plot(time_range, wind_speeds, label="wind speed")
     axs[1].plot(time_range, results_struct[:, 0], label="tip deflection flap")  # plot x deflection
     axs[2].plot(time_range, results_struct[:, 1], label="tip deflection edge")  # plot y deflection
-    axs[3].plot(time_range, results_struct[:, 2], label="tip deflection flap acc")  # plot x deflection
-    axs[4].plot(time_range, results_struct[:, 3], label="tip deflection edge acc")  # plot y deflection
+    axs[3].plot(time_range, results_struct[:, 2], label="tip flap velocity")  # plot x deflection
+    axs[4].plot(time_range, results_struct[:, 3], label="tip edge velocity")  # plot y deflection
     
     # Formatiing
     axs[0].legend()

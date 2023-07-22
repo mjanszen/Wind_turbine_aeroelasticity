@@ -8,50 +8,6 @@ from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 import numpy as np
 import logging
-import matplotlib.pyplot as plt
-
-
-# Aero class should be unused in the current version of the code
-class Aero():
-    """
-    Class to combine the blade aero properties and provide aero calculation functionality
-    """
-
-    def __init__(self, aero_data, section_data):
-        self.aero_data = aero_data
-        self.section_data= section_data
-        self.n = len(self.section_data.Radius)
-
-        self.radii = np.append(self.section_data.Radius, 63)
-        self.simulation_error = 10 **-6
-        self.flow = None
-        # self.pitch_deg = 0
-        # self.pitch = 0
-
-    def _read_from_file(self):
-        """
-        Read in the data from a given file containing the structural data
-        """
-        pass
-
-    def _compute_aero_output(self):
-        """
-        Calculate change in wind speed and angle of attack
-        """
-        pass
-
-    def set_blade_properties(self, **kwargs):
-        self.read_from_file()
-        # Read in structural properties
-        # Get information like discretization
-        # create structural prop matrices for computations
-        pass
-
-    def compute_bem(self, response):
-        """
-        Dummy function to test structure with same output
-        """
-        return np.ones(self.n), self.section_data.Radius
 
 
 class Struct():
@@ -76,8 +32,6 @@ class Struct():
         self.radius = radius
         self.root_radius = root_radius
         self.damping_ratio = damping_ratio
-        # self.pitch_deg = pitch_deg
-        # self.pitch_rad = np.deg2rad(pitch_deg)
 
     def compute_equivalent_params(self):
         """
@@ -97,8 +51,6 @@ class Struct():
         phi_flap_spanwise_d2 = phi_flap_d2_new(self.structural_data.Radius, self.radius)
         
         # M = int (rho A phi^2) dr
-        # m_edge = np.trapz(np.multiply(self.structural_data.BMassDen, self.phi_edge_spanwise**2))
-        # m_flap = np.trapz(np.multiply(self.structural_data.BMassDen, self.phi_flap_spanwise**2))
         m_edge = np.trapz(np.multiply(self.structural_data.BMassDen, self.phi_edge_spanwise**2), self.structural_data.Radius)
         m_flap = np.trapz(np.multiply(self.structural_data.BMassDen, self.phi_flap_spanwise**2), self.structural_data.Radius)
 
@@ -141,19 +93,14 @@ class Struct():
         Use the right integration !
 
         """
-        # Compute equivalent forces
-
-        # K = int (EI d2 phidr ^2) dr
-        # f_edge = np.trapz(np.multiply(self.f_edge, self.phi_edge_spanwise))
-        # f_flap = np.trapz(np.multiply(self.f_flap, self.phi_flap_spanwise))
-        # plt.plot(self.discretization, self.f_flap)
-        # plt.show()
         f_edge = np.trapz(np.multiply(self.f_edge, self.phi_edge_spanwise), self.discretization)
         f_flap = np.trapz(np.multiply(self.f_flap, self.phi_flap_spanwise), self.discretization)
         self.f = np.array([f_flap, f_edge])  # ---------> This needs to be changed every step
         logging.debug(self.f)
+        # plt.plot(self.discretization, self.f_flap)
+        # plt.show()
 
-    def _compute_equi_forces_new(self, f_bem_edge, f_bem_flap, bem_radii, dr, integrate=False):
+    def _compute_equi_forces_new(self, f_bem_edge, f_bem_flap, bem_radii, dr, integrate=True):
         """
         Compute equivalent force vector
         
@@ -162,13 +109,6 @@ class Struct():
         Use the right integration !
 
         """
-        # Compute equivalent forces
-
-        # K = int (EI d2 phidr ^2) dr
-        # f_edge = np.trapz(np.multiply(self.f_edge, self.phi_edge_spanwise))
-        # f_flap = np.trapz(np.multiply(self.f_flap, self.phi_flap_spanwise))
-        # plt.plot(self.discretization, self.f_flap)
-        # plt.show()
         if integrate:
             try:
                 f_edge = np.trapz(np.multiply(f_bem_edge, self.phi_edge_spanwise_aero), bem_radii)
@@ -193,9 +133,9 @@ class Struct():
 
     def _apply_unit_loads(self, f_bem_edge, f_bem_flap, bem_radii):
         """
-        Interpolate from the Bem discretization onto the blade discretization
+        Interpolate forces per unit length from the Bem discretization onto the blade discretization
         
-        CAREFULL: YOU CANNOT INTERPOLATE ABSOLUTE FORCES ---> Conservation of work
+        CAUTION: YOU CANNOT INTERPOLATE ABSOLUTE FORCES ---> Conservation of work
         Forces need to be per unit length
         """
 
@@ -222,9 +162,10 @@ class Struct():
         """
         
         # theta = self.pitch + self.section_data.AeroTwst
-        # f_edge = f_bem_normal * np.cos(self.pitch) + f_bem_tangential * np.sin(self.pitch)
-        # f_flap = f_bem_normal * np.sin(self.pitch) - f_bem_tangential * np.cos(self.pitch)
+        # f_edge = f_bem_normal * np.cos(pitch_rad) + f_bem_tangential * np.sin(pitch_rad)
+        # f_flap = f_bem_normal * np.sin(pitch_rad) - f_bem_tangential * np.cos(pitch_rad)
         
+        # -------> using the twist here seems odd, but doesn't work otherwise
         f_flap = f_bem_normal * np.cos(pitch_rad + twist_rad) + f_bem_tangential * np.sin(pitch_rad + twist_rad)
         f_edge = f_bem_normal * np.sin(pitch_rad + twist_rad) - f_bem_tangential * np.cos(pitch_rad + twist_rad)
 

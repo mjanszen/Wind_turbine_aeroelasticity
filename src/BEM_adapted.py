@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import glob
 
 
@@ -56,7 +55,6 @@ def bem(v0, omega, pitch_deg):
 
         n_iter = 0  # Iteration counter
         
-        #breakpoint()
         # Iteration, stop when error is smaller than precision_tolerance
         while abs(ax - a) >= precision_tolerance or abs(ax_prime - a_prime) >= precision_tolerance:
             n_iter += 1
@@ -128,6 +126,10 @@ def bem_sections():
 
 
 def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch_deg):
+    """
+    BEM code provided by Wei translated to python. Changes are made in the computation of phi and the forces fn, ft,
+    where now the blade velocity is added to the local velocity vectors
+    """
     # Fixed parameters
     B = 3             # Number of blades
     R = 63            # Rotor radius
@@ -192,8 +194,12 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch_deg):
             a = ax
             a_prime = ax_prime
 
+            # -  - --  -- - --  --  - -- - - - -- #
+            # This is where the changes come in
+            # -  - --  -- - --  --  - -- - - - -- #
+
             # Inflow angle
-            phi = np.arctan(((1 - a) * v0 - v_blade_oop[i])/(((1 + a_prime) * r * omega) + v_blade_ip[i]))
+            phi = np.arctan(((1 - a) * v0 - v_blade_oop[i])/(((1 + a_prime) * r * omega) - v_blade_ip[i]))
             phi = np.rad2deg(phi)
 
             # Angle of attack (AOA)
@@ -244,8 +250,8 @@ def bem_fsi(v0, v_blade_ip, v_blade_oop, omega, pitch_deg):
         a_prime = ax_prime
 
         # Forces in two directions -----> per unit length !
-        f_normal[i] = 0.5 * rho * ((r * omega * (1 + a_prime) + v_blade_ip[i]) ** 2 + (v0 * (1 - a)- v_blade_oop[i]) ** 2) * chord * cn
-        f_tangential[i] = 0.5 * rho * ((r * omega * (1 + a_prime)+ v_blade_ip[i]) ** 2 + (v0 * (1 - a)- v_blade_oop[i]) ** 2) * chord * ct
+        f_normal[i] = 0.5 * rho * ((r * omega * (1 + a_prime) - v_blade_ip[i]) ** 2 + (v0 * (1 - a)- v_blade_oop[i]) ** 2) * chord * cn
+        f_tangential[i] = 0.5 * rho * ((r * omega * (1 + a_prime)- v_blade_ip[i]) ** 2 + (v0 * (1 - a)- v_blade_oop[i]) ** 2) * chord * ct
        
         # original
         #f_normal[i] = 0.5 * rho * ((r * omega * (1 + a_prime)) ** 2 + (v0 * (1 - a)) ** 2) * chord * cn * dr
