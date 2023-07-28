@@ -1,3 +1,8 @@
+# Script to test the translated BEM code
+#
+#
+#
+
 import numpy as np
 import matplotlib.pyplot as plt
 from BEM import bem

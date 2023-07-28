@@ -19,7 +19,7 @@ import os
 import re
 
 # Set up a logger that can be used to debug. Change the level to silence output
-logging.basicConfig(encoding='utf-8', level=logging.DEBUG)
+logging.basicConfig(encoding='utf-8', level=logging.INFO)
 
 
 # --------------------------------------------------------------------------#
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     op_conditions = {'V': 11.4,                         # Only used for steady computations
                      'radius': 63,
                      'inner_radius': 1.5,
-                     'pitch_deg': 10.45,  # in degrees!
+                     # 'pitch_deg': 10.45,  # in degrees!
                      'omega': 1.267,  # 12.1 * (2*np.pi /60),     # rpm
                      'steady': True,                    # Toggle the quasi steady computation
                      'debug': True,
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     # --------------------------------------------------------------------------#
     
     blade_struct= Struct(structural_data=struct_df, iv=None)
-    blade_struct.set_params(pitch_deg=op_conditions['pitch_deg'], radius=63, root_radius=1.5, damping_ratio=0.00477465)
+    blade_struct.set_params(radius=63, root_radius=1.5, damping_ratio=0.00477465)
     blade_struct.compute_equivalent_params()  # computes the M C K stuff
 
     # --------------------------------------------------------------------------#
@@ -108,55 +108,31 @@ if __name__ == "__main__":
     # --------------------------------------------------------------------------#
     
     # --------------------------------------------------------------------------#
-    # Compute time step size based on the structural time scales
-    # --------------------------------------------------------------------------#
-
-    #period = 1/ np.max(eigenfreq_Hz)  # base on the fastest scale
-    #dt_calc = 0.01 * period  # define number of points per period
-    # logging.warning('Implement the time step so that it cannot lead to problems at division')
-    # timesteps = int(op_conditions['time_end'] / op_conditions['dt'])
-    
-    #timesteps = int(op_conditions['time_end'] / dt_calc)
-    #time_end = timesteps * dt_calc  # The real time that can be simulated with the time step size
-    #time_range= np.linspace(0, time_end, timesteps)  # there probably is a more elegant way to do this
-    
-    # Time new
-    t_end = 17
-    timesteps = t_end * 500 + 1
-    time_range = np.linspace(0, t_end, timesteps)
-    dt =time_range[1] - time_range[0]
-    # --------------------------------------------------------------------------#
     # Initialize initial conditions and result arrays
     # --------------------------------------------------------------------------#
    
-    n_sections, radii_aero = bem_sections()  # looks how many sections there are in the input file
+    n_sections, radii_aero, twist_deg, dr = bem_sections()  # looks up the blade data
+    twist_rad = np.deg2rad(twist_deg)
 
-    results_aero = np.zeros([timesteps, n_sections +2])  # For integration we need to add the 0 at the root and tip
-    results_struct = np.zeros([timesteps, 4])  # x, y , xdot, ydot
-    
     x_dot = 0  # Initial velocity of the structure
     y_dot = 0
 
     # ------------------ Compute the mode shape
     phi_edge_aero = np.array([phi_edge_new(r, op_conditions['radius']) for r in radii_aero])
     phi_flap_aero = np.array([phi_flap_new(r, op_conditions['radius']) for r in radii_aero])
-    # phi_edge_aero = np.array([phi_edge(r, op_conditions['radius']) for r in radii_aero])
-    # phi_flap_aero = np.array([phi_flap(r, op_conditions['radius']) for r in radii_aero])
     
-    # ------------------ Compute the wind speeds over time
-    wind_speeds = np.ones(len(time_range)) * op_conditions["V"]
-   
     # --------------------------------------------------------------------------#
     # -------------Steady computaiton-------------------------------------------#
     # --------------------------------------------------------------------------#
     if op_conditions["steady"]:
         # To do:
 
-        steady_velocities = [11.4, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
-        steady_pitch_angles_deg= [0, 3.83, 6.60, 8.70, 10.45, 12.06, 13.54, 14.92,
+        steady_velocities =      [3, 4, 5, 6, 7, 8, 9, 10, 11, 11.4, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+        steady_pitch_angles_deg= [0, 0, 0, 0, 0, 0, 0,  0,  0,    0, 3.83, 6.60, 8.70, 10.45, 12.06, 13.54, 14.92,
                               16.23, 17.47, 18.70, 19.94, 21.18, 22.35, 23.47]
         response_2d = np.zeros((len(steady_velocities), 2))
 
+        fig1, axs1 = plt.subplots(2, 1)
         for i, v in enumerate(steady_velocities):
             # set unsteady component to 0
             
@@ -164,30 +140,38 @@ if __name__ == "__main__":
             pitch_rad = np.deg2rad(pitch_deg)
             v_blade_ip = [0] *len(radii_aero)
             v_blade_oop = [0] * len(radii_aero)
-            # breakpoint()
             # Compute aero loads
-            radial_positions, fn, ft, a, a_prime = bem_fsi(v, v_blade_ip, v_blade_oop,
-                                                           op_conditions['omega'], pitch_deg)
-            
-            # Set loads at the blade ends to 0 for integration
-            radial_positions = np.array([op_conditions["inner_radius"], *radial_positions, op_conditions["radius"]])
-            
-            # Add the 0 at tip and root
-            fn = np.array([0, *fn, 0])
-            ft = np.array([0, *ft, 0])
-            
+            radial_positions, fn, ft, a, a_prime, rbm_t, rbm_n, power = bem_fsi(v, v_blade_ip, v_blade_oop,
+                                                                                op_conditions['omega'], pitch_deg)
+                
             # Compute structural response
-            response = blade_struct.solve_steady_structure(fn, ft, radial_positions, pitch_rad)
-
+            response = blade_struct.solve_steady_structure(fn, ft, radial_positions, dr, pitch_rad, twist_rad)
             response_2d[i] = response[0:2]
+
+            if v == 15 or v == 11.4 or v==22:
+
+                axs1[0].plot(radii_aero, fn)
+                axs1[0].set_ylabel(r"$F_n$ in Nm")
+                axs1[1].set_ylabel(r"$F_t$ in Nm")
+                axs1[1].plot(radii_aero, ft)
+        fig1.legend(["v=11.4", "v=15", "v=22"])
+        axs1[1].set_xlabel("Spanwise position (m)")
+        [ax.grid() for ax in axs1]
+        plt.savefig("../results/steady_forces.pdf", bbox_inches="tight")
+        plt.show()
 
         fig, axs = plt.subplots(3, 1)
         axs[0].plot(steady_velocities, steady_pitch_angles_deg)
         axs[1].plot(steady_velocities, response_2d[:, 0])
         axs[2].plot(steady_velocities, response_2d[:, 1])
+        [ax.grid() for ax in axs]
+        axs[1].set_xlabel("Wind speed (m/s)")
+        axs[0].set_ylabel(r"$Pitch \; angle(^\circ)$")
+        axs[1].set_ylabel("Flapwise\nTip deflection (m)")
+        axs[2].set_ylabel("Edgewise\nTip deflection (m)")
+        plt.savefig("../results/steady_deflection.pdf", bbox_inches="tight")
         plt.show()
     
-    breakpoint()
     if op_conditions["test_bem"]:
         # BEM takes degrees, structures takes radian
         v_blade_ip = [0] *len(radii_aero)

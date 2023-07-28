@@ -96,9 +96,9 @@ if __name__ == "__main__":
     op_conditions = {'V': 11.4,                         # Only used for steady computations
                      'radius': 63,
                      'inner_radius': 1.5,
-                     'pitch_deg': 10.45,                # in degrees!
+                     'pitch_deg': 0,                # in degrees!
                      'omega': 1.267,                    # 12.1 * (2*np.pi /60),     # rpm
-                     'steady': False,                   # Toggle the quasi steady computation
+                     'steady': True,                   # Toggle the quasi steady computation
                      'debug': False,
                      'test_bem': False
                      }
@@ -156,10 +156,6 @@ if __name__ == "__main__":
 
     results_aero = np.zeros([timesteps, n_sections +2])  # For integration we need to add the 0 at the root and tip
     results_struct = np.zeros([timesteps, 4])  # x, y , xdot, ydot
-    
-    results_forces = np.zeros([timesteps-1, 2])  # flap, edge
-    results_rbm = np.zeros([timesteps-1, 2])  # normal, tangential
-    results_power = np.zeros([timesteps-1, 1])
    
     # x: flapwise, y: edgewise
     x_dot = 0  # Initial velocity of the structure
@@ -182,8 +178,8 @@ if __name__ == "__main__":
         vi = 15.6
         c_pitch = 10.45
         c_omega = 1.267
-        radial_positions, fn, ft, a, a_prime, rbm_t, rbm_n, power = bem_fsi(vi, v_blade_ip, v_blade_oop,
-                                                                            c_omega, c_pitch)
+        radial_positions, fn, ft, a, a_prime = bem_fsi(vi, v_blade_ip, v_blade_oop,
+                                                       c_omega, c_pitch)
         
         s_radial_positions, s_fn, s_ft, power= bem(vi, c_omega, c_pitch)
         breakpoint()
@@ -212,17 +208,14 @@ if __name__ == "__main__":
         # These should be subtracted from the wind velcities!
                
         # 2. Compute the aerodynamic loads using BEM
-        radial_positions, fn, ft, a, a_prime, rbm_t, rbm_n, power = bem_fsi(wind_speeds[i], v_blade_ip, v_blade_oop,
-                                                                            op_conditions['omega'], pitch_deg)
+        radial_positions, fn, ft, a, a_prime = bem_fsi(wind_speeds[i], v_blade_ip, v_blade_oop,
+                                                       op_conditions['omega'], pitch_deg)
 
-        results_power[i] = power
-        results_rbm[i] = np.array([rbm_n, rbm_t])
         # 3. Compute the structural response with the 2D structure model
         
         # Time used in the integration of the structure response
         time_span = time_range[i:i+2]  # last index is not included. Due to that, the step is 2
-        current_forces = blade_struct.solve_structure(fn, ft, radial_positions, dr, time_span, pitch_rad, twist_rad)
-        results_forces[i] = current_forces
+        blade_struct.solve_structure(fn, ft, radial_positions, dr, time_span, pitch_rad, twist_rad)
 
         # 4. Save the outputs
         results_struct[i] = blade_struct.state  # x, y, x_dot, y_dot or z_flap, z_edge, v_flap, v_edge
@@ -255,80 +248,21 @@ if __name__ == "__main__":
 
     # Formatiing
     plt.savefig("../results/unsteady_time_series_end.pdf", bbox_inches="tight")
-
-    # ------------------------------------------------------------------------ #
-    # Frequency analysis
-    # ------------------------------------------------------------------------ #
-    condition1 = time_range <45
-    condition2 = time_range >5
-    mask = condition1 & condition2
-    # signal = results_struct[mask, 2]
-    signal = results_struct[mask, 0]
-    signal = signal - np.mean(signal)
-    fft_flap_deflection = np.fft.fft(signal)
-    sampling_rate = 1/dt  # Replace this with your actual sampling rate
-    n = len(signal)
-    freq = np.fft.fftfreq(n, d=1/sampling_rate)
-    positive_freq_indices = np.where(freq >= 0)  # Get the indices of positive frequencies
-    plt.figure(figsize=(8, 4))
-    plt.plot(freq[positive_freq_indices], np.abs(fft_flap_deflection[positive_freq_indices]))
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('Magnitude')
-    plt.xlim(0, 2)
-    plt.grid()
-    #plt.savefig("../results/unsteady_response_fft.pdf", bbox_inches="tight")
-    
-    # Frequency domain analysis deflections and velocities
-    fig4, axs4 = plt.subplots(5, 1)
-    fig4.set_figheight(8)
-    fig4.set_figwidth(10)
-    axs4[0].plot(freq[positive_freq_indices],
-                 np.abs(np.fft.fft(wind_speeds[mask] - np.mean(wind_speeds))[positive_freq_indices]),
-                 label="Wind Speed")
-    axs4[1].plot(freq[positive_freq_indices],
-                 np.abs(np.fft.fft(results_struct[mask, 0] - np.mean(results_struct[mask, 0]))[positive_freq_indices]),
-                 label="Flap Deflection")
-    axs4[2].plot(freq[positive_freq_indices],
-                 np.abs(np.fft.fft(results_struct[mask, 1] - np.mean(results_struct[mask, 1]))[positive_freq_indices]),
-                 label="Edge Deflection")
-    axs4[3].plot(freq[positive_freq_indices],
-                 np.abs(np.fft.fft(results_struct[mask, 2] - np.mean(results_struct[mask, 2]))[positive_freq_indices]),
-                 label="Flap Velocity")
-    axs4[4].plot(freq[positive_freq_indices],
-                 np.abs(np.fft.fft(results_struct[mask, 3] - np.mean(results_struct[mask, 3]))[positive_freq_indices]),
-                 label="Edge Velocity")
-    axs4[4].set_xlabel("Frequency [Hz]")
-    [ax.set_xlim(0, 2) for ax in axs4]
-    [ax.set_xticklabels([]) for ax in axs4[:-1]]
-    [ax.legend() for ax in axs4]
-    #[(ax.legend("Location", 'east'), ax.grid()) for ax in axs4]
-    #fig.legend("Location", 'east')
-    [ax.grid() for ax in axs4]
-    #ylabels = [r"$V_\infty$", "Tip Deflection\nflap", "Tip deflection\nedge", "Tip velocity\nflap", "Tip velocity\nedge"]
-    #[ax.set_ylabel(ylabels[i]) for i, ax in enumerate(axs4)]
-
-    plt.savefig("../results/unsteady_response_fft_start.pdf", bbox_inches="tight")
-
-    fig3, axs3 = plt.subplots(5, 1)
-    fig3.set_figheight(8)
-    fig3.set_figwidth(10)
-    [ax.set_xticklabels([]) for ax in axs3[:-1]]
-    axs3[0].plot(time_range[:-1], results_power)
-    axs3[1].plot(time_range[:-1], results_forces[:, 0])
-    axs3[2].plot(time_range[:-1], results_forces[:, 1])
-    
-    axs3[3].plot(time_range[:-1], results_rbm[:, 0])  # normal
-    axs3[4].plot(time_range[:-1], results_rbm[:, 1])  # tangential
-
-    [ax.grid() for ax in axs3]
-    axs3[0].set_ylabel("Power (W)")
-    axs3[1].set_ylabel("Equivalent force\nFlap (N)")
-    axs3[2].set_ylabel("Equivalent forces\nEdge (N)")
-    axs3[3].set_ylabel("Root Bending\nMoment - Normal (Nm)")
-    axs3[4].set_ylabel("Root Bending\nMoment - Tangential (Nm)")
-    axs3[4].set_xlabel("Time (s)")
-    plt.savefig("../results/unsteady_time_series_rbm_forces_.pdf", bbox_inches="tight")
-    
     plt.show()
 
+    # ------------------------------------------------------------------------ #
+    # Corrlation
+    # ------------------------------------------------------------------------ #
+   
+    n_points = len(time_range)
+    dt_range = np.arange(0, 2, 201)
+    time_mask = time_range >80
+    corr = correlate(wind_speeds[time_mask], results_struct[time_mask, 0])
+    lag_n = np.argmax(corr) - (len(results_struct[time_mask, 0]) - 1)
+    lag_t = dt* lag_n
 
+    lag = lag_finder(wind_speeds[time_mask], results_struct[time_mask, 0], 1/dt)
+
+    breakpoint()
+    #for i, dt in enumerate(dt_range):
+    #    corr = [pearsonr() for ]

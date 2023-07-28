@@ -15,7 +15,7 @@ class Struct():
     Class to combine the blade properties and handle the structural computation
     """
 
-    def __init__(self, structural_data, iv=None, radius=1, pitch_deg=0):
+    def __init__(self, structural_data, iv=None, radius=1):
         self.n = int(0)
         self.radius = radius
         # self.pitch_deg = pitch_deg
@@ -28,7 +28,7 @@ class Struct():
         else:
             self.state= iv
     
-    def set_params(self, pitch_deg, radius=63, root_radius=1.5, damping_ratio=0.00477465):
+    def set_params(self, radius=63, root_radius=1.5, damping_ratio=0.00477465):
         self.radius = radius
         self.root_radius = root_radius
         self.damping_ratio = damping_ratio
@@ -177,15 +177,10 @@ class Struct():
         """
         # 1. Switch to blade coordinate system
         f_bem_edge, f_bem_flap = self._loads_to_blade_coords(f_bem_normal, f_bem_tangential, pitch_rad, twist_rad)
-        # 2. Force interpolation onto the discretization of the structure
-        # ---> not necessary
-        # self._apply_unit_loads(f_bem_edge, f_bem_flap, bem_radii)  # --> self.f_edge, self.f_flap
         
-        # 3. Compute equivalent force
-        # self._compute_equivalent_forces()  # --> Force along the blade to equivalent force vector in 2D
-        # self._compute_equi_forces_new()  # --> Force along the blade to equivalent force vector in 2D
+        # 2. Compute equivalent force in the ritz method
         self._compute_equi_forces_new(f_bem_edge, f_bem_flap, bem_radii, dr)
-
+         
         # 3. Solve ode
         logging.debug(time_span)
         t_eval = np.linspace(time_span[0], time_span[1], 20)
@@ -198,21 +193,18 @@ class Struct():
         self.state = solution.y[:, -1]
         # breakpoint()
         logging.debug(self.state)
+         
+        return self.f
 
-    def solve_steady_structure(self, f_bem_normal, f_bem_tangential, bem_radii, pitch_rad):
+    def solve_steady_structure(self, f_bem_normal, f_bem_tangential, bem_radii, dr, pitch_rad, twist_rad):
         """
         Compute the steady response of the structure. Reduces the Equation of motion to kx = f
         """
         # 1. Switch to blade coordinate system
-        # pitch_rad = np.deg2rad(pitch_deg)
-        f_bem_edge, f_bem_flap = self._loads_to_blade_coords(f_bem_normal, f_bem_tangential, pitch_rad)
-        
-        # 2. Forces interpolation
-
-        self._apply_unit_loads(f_bem_edge, f_bem_flap, bem_radii)  # --> self.f_edge, self.f_flap
-        
-        # 3. equivalent force
-        self._compute_equivalent_forces()  # --> Force along the blade to equivalent force vector in 2D
+        f_bem_edge, f_bem_flap = self._loads_to_blade_coords(f_bem_normal, f_bem_tangential, pitch_rad, twist_rad)
+         
+        # 2. equivalent force
+        self._compute_equi_forces_new(f_bem_edge, f_bem_flap, bem_radii, dr)
 
         # 3. Solve EOM : x = f/k
         
